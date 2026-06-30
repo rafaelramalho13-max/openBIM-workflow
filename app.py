@@ -782,22 +782,39 @@ with tab1:
             "com base em requisitos contratuais computáveis descritos no formato **IDS**."
         )
         
+        # Parse the currently selected IDS file in the sidebar to show its requirements dynamically
+        preview_specs = []
+        if selected_ids_name in all_ids_options:
+            try:
+                with open(all_ids_options[selected_ids_name], "r", encoding="utf-8") as f:
+                    preview_content = f.read()
+                preview_specs = parse_ids_xml(preview_content)
+            except:
+                pass
+        
         col_guide1, col_guide2 = st.columns(2)
         with col_guide1:
             st.markdown("#### 🚀 Como Testar a Plataforma:")
             st.markdown(
                 "1. **Selecione o Modelo IFC** no painel esquerdo.\n"
-                "2. **Selecione a Especificação IDS** (`requisitos.ids`).\n"
+                "2. **Selecione as Regras IDS** no painel esquerdo.\n"
                 "3. Clique em **🚀 Executar Validação openBIM**.\n"
                 "4. Explore as abas de resultados e baixe os relatórios."
             )
         with col_guide2:
-            st.markdown("#### 📋 Requisitos PIR Mapeados:")
-            st.markdown(
-                "* **PIR-01 (Espaços)**: Preenchimento de `LongName` em `IfcSpace`.\n"
-                "* **PIR-02 (Volume)**: Presença de `NetVolume` > 0 em elementos estruturais.\n"
-                "* **PIR-03 (Fire Rating)**: Propriedade `FireRating` em `Pset_WallCommon` de paredes."
-            )
+            st.markdown(f"#### 📋 Regras no Arquivo `{selected_ids_name}`:")
+            if preview_specs:
+                for spec in preview_specs:
+                    req_labels = []
+                    for req in spec["requirements"]:
+                        if req.get("type", "property") == "property":
+                            req_labels.append(f"`{req['pset']}.{req['name']}`")
+                        elif req.get("type") == "attribute":
+                            req_labels.append(f"Atributo `{req['name']}`")
+                    entities_str = ", ".join(spec["entities"])
+                    st.markdown(f"* **{spec['name']}** ({entities_str}): {', '.join(req_labels)}")
+            else:
+                st.info("Nenhuma especificação identificada no IDS selecionado.")
             
         # Show local models ready to audit
         st.markdown("---")
