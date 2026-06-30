@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ids xmlns="http://standards.buildingsmart.org/IDS" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.buildingsmart.org/IDS http://standards.buildingsmart.org/IDS/ids_1.0.xsd">
+  <info>
+    <title>Especificação de Entrega de Informação (IDS) - Requisitos de Qualidade openBIM</title>
+    <version>1.0</version>
+    <description>Arquivo IDS para verificação automatizada de definição de espaços, consistência de volumes estruturais e classificação de resistência ao fogo em paredes.</description>
+    <author>Rafael Ramalho &amp; Google Antigravity Agent</author>
+    <date>2026-06-28</date>
+  </info>
+  <specifications>
+    
+    <!-- PIR-01: Verificação de Espaços -->
+    <specification id="PIR-01-Spaces" name="PIR-01: Cadastro de Espaços (LongName)" minOccurs="1" maxOccurs="unbounded">
+      <description>Verifica se o modelo contém compartimentação de espaços e se possuem o atributo LongName preenchido.</description>
+      <applicability>
+        <entity>
+          <name>
+            <simpleValue>IFCSPACE</simpleValue>
+          </name>
+        </entity>
+      </applicability>
+      <requirements>
+        <attribute minOccurs="1" maxOccurs="1">
+          <name>
+            <simpleValue>LongName</simpleValue>
+          </name>
+        </attribute>
+      </requirements>
+    </specification>
+
+    <!-- PIR-02: Volume de Pilares -->
+    <specification id="PIR-02-Columns" name="PIR-02: Volume de Pilares (IfcColumn)" minOccurs="0" maxOccurs="unbounded">
+      <description>Verifica se todos os pilares possuem propriedade de volume líquido preenchida.</description>
+      <applicability>
+        <entity>
+          <name>
+            <simpleValue>IFCCOLUMN</simpleValue>
+          </name>
+        </entity>
+      </applicability>
+      <requirements>
+        <property minOccurs="1" maxOccurs="1">
+          <propertySet>
+            <simpleValue>Qto_ColumnBaseQuantities</simpleValue>
+          </propertySet>
+          <name>
+            <simpleValue>NetVolume</simpleValue>
+          </name>
+        </property>
+      </requirements>
+    </specification>
+
+    <!-- PIR-02: Volume de Vigas -->
+    <specification id="PIR-02-Beams" name="PIR-02: Volume de Vigas (IfcBeam)" minOccurs="0" maxOccurs="unbounded">
+      <description>Verifica se todas as vigas possuem propriedade de volume líquido preenchida.</description>
+      <applicability>
+        <entity>
+          <name>
+            <simpleValue>IFCBEAM</simpleValue>
+          </name>
+        </entity>
+      </applicability>
+      <requirements>
+        <property minOccurs="1" maxOccurs="1">
+          <propertySet>
+            <simpleValue>Qto_BeamBaseQuantities</simpleValue>
+          </propertySet>
+          <name>
+            <simpleValue>NetVolume</simpleValue>
+          </name>
+        </property>
+      </requirements>
+    </specification>
+
+    <!-- PIR-02: Volume de Lajes -->
+    <specification id="PIR-02-Slabs" name="PIR-02: Volume de Lajes (IfcSlab)" minOccurs="0" maxOccurs="unbounded">
+      <description>Verifica se todas as lajes possuem propriedade de volume líquido preenchida.</description>
+      <applicability>
+        <entity>
+          <name>
+            <simpleValue>IFCSLAB</simpleValue>
+          </name>
+        </entity>
+      </applicability>
+      <requirements>
+        <property minOccurs="1" maxOccurs="1">
+          <propertySet>
+            <simpleValue>Qto_SlabBaseQuantities</simpleValue>
+          </propertySet>
+          <name>
+            <simpleValue>NetVolume</simpleValue>
+          </name>
+        </property>
+      </requirements>
+    </specification>
+
+    <!-- PIR-02: Volume de Fundações -->
+    <specification id="PIR-02-Footings" name="PIR-02: Volume de Fundações (IfcFooting)" minOccurs="0" maxOccurs="unbounded">
+      <description>Verifica se todas as fundações possuem propriedade de volume líquido preenchida.</description>
+      <applicability>
+        <entity>
+          <name>
+            <simpleValue>IFCFOOTING</simpleValue>
+          </name>
+        </entity>
+      </applicability>
+      <requirements>
+        <property minOccurs="1" maxOccurs="1">
+          <propertySet>
+            <simpleValue>Qto_FootingBaseQuantities</simpleValue>
+          </propertySet>
+          <name>
+            <simpleValue>NetVolume</simpleValue>
+          </name>
+        </property>
+      </requirements>
+    </specification>
+
+    <!-- PIR-03: Fire Rating em Paredes (IfcWall) -->
+    <specification id="PIR-03-Walls" name="PIR-03: Fire Rating em Paredes (IfcWall)" minOccurs="0" maxOccurs="unbounded">
+      <description>Verifica se todas as paredes comuns possuem propriedade FireRating preenchida no Pset_WallCommon.</description>
+      <applicability>
+        <entity>
+          <name>
+            <simpleValue>IFCWALL</simpleValue>
+          </name>
+        </entity>
+      </applicability>
+      <requirements>
+        <property minOccurs="1" maxOccurs="1">
+          <propertySet>
+            <simpleValue>Pset_WallCommon</simpleValue>
+          </propertySet>
+          <name>
+            <simpleValue>FireRating</simpleValue>
+          </name>
+        </property>
+      </requirements>
+    </specification>
+
+    <!-- PIR-03: Fire Rating em Paredes Padrão (IfcWallStandardCase) -->
+    <specification id="PIR-03-WallsStd" name="PIR-03: Fire Rating em Paredes (IfcWallStandardCase)" minOccurs="0" maxOccurs="unbounded">
+      <description>Verifica se todas as paredes padrão possuem propriedade FireRating preenchida no Pset_WallCommon.</description>
+      <applicability>
+        <entity>
+          <name>
+            <simpleValue>IFCWALLSTANDARDCASE</simpleValue>
+          </name>
+        </entity>
+      </applicability>
+      <requirements>
+        <property minOccurs="1" maxOccurs="1">
+          <propertySet>
+            <simpleValue>Pset_WallCommon</simpleValue>
+          </propertySet>
+          <name>
+            <simpleValue>FireRating</simpleValue>
+          </name>
+        </property>
+      </requirements>
+    </specification>
+
+  </specifications>
+</ids>
