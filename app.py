@@ -178,6 +178,97 @@ def auto_generate_bep_excel(script_path):
             print(f"Erro ao gerar BEP Excel automaticamente: {e}")
     return False
 
+def generate_dynamic_bep_excel(specs):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from io import BytesIO
+    
+    output = BytesIO()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Matriz de Mapeamento BEP"
+    ws.views.sheetView[0].showGridLines = True
+    
+    # Styles
+    font_family = "Segoe UI"
+    title_font = Font(name=font_family, size=14, bold=True, color="FFFFFF")
+    header_font = Font(name=font_family, size=11, bold=True, color="FFFFFF")
+    bold_font = Font(name=font_family, size=10, bold=True)
+    normal_font = Font(name=font_family, size=10)
+    
+    fill_navy = PatternFill(start_color="1B365D", end_color="1B365D", fill_type="solid")
+    
+    align_center = Alignment(horizontal="center", vertical="center")
+    align_left = Alignment(horizontal="left", vertical="center")
+    
+    thin_border = Border(
+        left=Side(style='thin', color='D3D3D3'),
+        right=Side(style='thin', color='D3D3D3'),
+        top=Side(style='thin', color='D3D3D3'),
+        bottom=Side(style='thin', color='D3D3D3')
+    )
+    
+    # Header Title
+    ws.merge_cells("A1:F1")
+    ws["A1"] = "Matriz de Resposta Técnica do BEP (Gerada Dinamicamente)"
+    ws["A1"].font = title_font
+    ws["A1"].fill = fill_navy
+    ws["A1"].alignment = align_left
+    ws.row_dimensions[1].height = 25
+    
+    # Section Header
+    headers = ["Requisito / Regra", "Entidades IFC Alvo", "Property Set / Escopo", "Nome da Propriedade / Atributo", "Tipo de Dado", "Instruções de Modelagem/Exportação"]
+    ws.row_dimensions[3].height = 25
+    for col_idx, text in enumerate(headers, 1):
+        cell = ws.cell(row=3, column=col_idx, value=text)
+        cell.font = header_font
+        cell.fill = fill_navy
+        cell.alignment = align_center
+        cell.border = thin_border
+        
+    row_idx = 4
+    for spec in specs:
+        rule_name = spec["name"]
+        entities = ", ".join(spec["entities"])
+        for req in spec["requirements"]:
+            ws.row_dimensions[row_idx].height = 20
+            ws.cell(row=row_idx, column=1, value=rule_name).font = bold_font
+            ws.cell(row=row_idx, column=2, value=entities).font = normal_font
+            
+            pset_val = req["pset"] if req.get("type", "property") == "property" else "Atributo IFC"
+            ws.cell(row=row_idx, column=3, value=pset_val).font = normal_font
+            ws.cell(row=row_idx, column=4, value=req["name"]).font = bold_font
+            
+            # Simple data type mapping
+            dt = "Texto"
+            if any(x in req["name"].lower() for x in ["volume", "area", "length", "count"]):
+                dt = "Real / Quantidade"
+            elif "rating" in req["name"].lower() or "name" in req["name"].lower():
+                dt = "Texto"
+            ws.cell(row=row_idx, column=5, value=dt).font = normal_font
+            
+            instr = f"Garantir a presença de '{req['name']}' em '{pset_val}' com preenchimento correto."
+            ws.cell(row=row_idx, column=6, value=instr).font = normal_font
+            
+            for c in range(1, 7):
+                ws.cell(row=row_idx, column=c).border = thin_border
+                
+            row_idx += 1
+            
+    # Auto-width
+    for col in ws.columns:
+        max_len = 0
+        for cell in col:
+            if cell.coordinate == "A1":
+                continue
+            max_len = max(max_len, len(str(cell.value or '')))
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 10)
+        
+    wb.save(output)
+    return output.getvalue()
+
 # Parser for buildingSMART IDS 1.0 XML files
 def parse_ids_xml(xml_content):
     try:
@@ -1061,64 +1152,97 @@ with tab4:
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Resolve paths using recursive search in repo
-    pir_path = find_file_in_repo("PIR.md")
-    script_path = find_file_in_repo("gerar_anexo_bep.py")
+    # 1. Check if we are on the default project IDS
+    is_default_project = (selected_ids_name == "requisitos.ids")
     
-    # Set Excel path in the same folder as the generator script (or fallback)
-    if script_path:
-        bep_excel_path = os.path.join(os.path.dirname(script_path), "Anexo_BEP.xlsx")
-    else:
-        bep_excel_path = os.path.join(current_dir, "requisitos", "Anexo_BEP.xlsx")
+    if is_default_project:
+        # Resolve paths using recursive search in repo
+        pir_path = find_file_in_repo("PIR.md")
+        script_path = find_file_in_repo("gerar_anexo_bep.py")
         
-    # Auto-generate if missing
-    if bep_excel_path and not os.path.exists(bep_excel_path) and script_path:
-        with st.spinner("Gerando arquivo Excel do BEP automaticamente..."):
-            auto_generate_bep_excel(script_path)
+        # Set Excel path in the same folder as the generator script (or fallback)
+        if script_path:
+            bep_excel_path = os.path.join(os.path.dirname(script_path), "Anexo_BEP.xlsx")
+        else:
+            bep_excel_path = os.path.join(current_dir, "requisitos", "Anexo_BEP.xlsx")
             
-    # Download excel BEP button
-    if bep_excel_path and os.path.exists(bep_excel_path):
-        with open(bep_excel_path, "rb") as f:
-            st.download_button(
-                label="📥 Baixar Anexo de Requisitos do BEP (Excel)",
-                data=f.read(),
-                file_name="Anexo_BEP_Resposta_PIR.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                help="Planilha Excel estruturando a matriz de resposta técnica de conformidade openBIM"
-            )
+        # Auto-generate if missing
+        if bep_excel_path and not os.path.exists(bep_excel_path) and script_path:
+            with st.spinner("Gerando arquivo Excel do BEP automaticamente..."):
+                auto_generate_bep_excel(script_path)
+                
+        # Download excel BEP button
+        if bep_excel_path and os.path.exists(bep_excel_path):
+            with open(bep_excel_path, "rb") as f:
+                st.download_button(
+                    label="📥 Baixar Anexo de Requisitos do BEP (Excel)",
+                    data=f.read(),
+                    file_name="Anexo_BEP_Resposta_PIR.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Planilha Excel estruturando a matriz de resposta técnica de conformidade openBIM"
+                )
+        else:
+            st.warning("O arquivo Anexo_BEP.xlsx não pôde ser gerado automaticamente. Verifique se o script `gerar_anexo_bep.py` foi enviado para o GitHub.")
     else:
-        st.warning("O arquivo Anexo_BEP.xlsx não pôde ser gerado automaticamente. Verifique se o script `gerar_anexo_bep.py` foi enviado para o GitHub.")
-        
-        # Debug information helper
-        with st.expander("🔍 Detalhes do Servidor (Depuração de Pastas)"):
-            st.write(f"Diretório atual (os.getcwd): `{os.getcwd()}`")
-            st.write(f"Diretório do script: `{current_dir}`")
+        # Custom IDS selected: Generate BEP Excel template dynamically in memory!
+        custom_specs = []
+        if selected_ids_name in all_ids_options:
             try:
-                st.write("Estrutura de pastas encontrada no repositório:")
-                structure = []
-                for root, dirs, files in os.walk(current_dir):
-                    level = root.replace(current_dir, '').count(os.sep)
-                    if level < 2:
-                        indent = ' ' * 4 * (level)
-                        structure.append(f"{indent}📁 {os.path.basename(root) or 'raiz'}/")
-                        subindent = ' ' * 4 * (level + 1)
-                        for f in files:
-                            if not f.startswith('.'):
-                                structure.append(f"{subindent}📄 {f}")
-                st.code("\n".join(structure))
-            except Exception as ex:
-                st.write(f"Erro ao listar pastas: {ex}")
-        
+                with open(all_ids_options[selected_ids_name], "r", encoding="utf-8") as f:
+                    custom_content = f.read()
+                custom_specs = parse_ids_xml(custom_content)
+            except Exception as e:
+                st.error(f"Erro ao analisar o arquivo IDS customizado: {e}")
+                
+        if custom_specs:
+            try:
+                dynamic_excel_bytes = generate_dynamic_bep_excel(custom_specs)
+                st.download_button(
+                    label=f"📥 Baixar Matriz BEP Dinâmica para {selected_ids_name} (Excel)",
+                    data=dynamic_excel_bytes,
+                    file_name=f"Matriz_BEP_{selected_ids_name.split('.')[0]}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Planilha Excel de resposta técnica gerada dinamicamente com base nas regras do IDS carregado."
+                )
+            except Exception as e:
+                st.error(f"Erro ao gerar a planilha Excel dinâmica: {e}")
+        else:
+            st.info("Nenhuma especificação identificada no IDS customizado para gerar o modelo Excel.")
+            
     st.markdown("---")
     
-    # Embed and render PIR.md inside Streamlit
-    if pir_path and os.path.exists(pir_path):
-        with open(pir_path, "r", encoding="utf-8") as f:
-            pir_markdown = f.read()
-        st.markdown("### Documento Integrado: Requisitos de Informação de Projeto (PIR)")
-        st.markdown(pir_markdown)
+    # 2. Render Document/Specifications
+    if is_default_project:
+        # Embed and render PIR.md inside Streamlit
+        if pir_path and os.path.exists(pir_path):
+            with open(pir_path, "r", encoding="utf-8") as f:
+                pir_markdown = f.read()
+            st.markdown("### Documento Integrado: Requisitos de Informação de Projeto (PIR)")
+            st.markdown(pir_markdown)
+        else:
+            st.info("O documento PIR.md não foi localizado no workspace do repositório.")
     else:
-        st.info("O documento PIR.md não foi localizado no workspace do repositório.")
+        # Custom IDS: Generate human-friendly requirements specification page dynamically
+        st.markdown(f"### 📋 Requisitos de Qualidade da Informação (Gerados a partir de `{selected_ids_name}`)")
+        st.markdown(
+            "Abaixo estão os requisitos de qualidade de dados extraídos automaticamente da especificação IDS "
+            "carregada no sistema:"
+        )
+        if custom_specs:
+            for spec in custom_specs:
+                st.markdown(f"#### {spec['name']}")
+                st.markdown(f"**Objetivo/Descrição**: {spec['description']}")
+                st.markdown(f"**Elementos Alvo**: `{', '.join(spec['entities'])}`")
+                
+                st.markdown("**Critérios de Aceitação**:")
+                for req in spec["requirements"]:
+                    if req.get("type", "property") == "property":
+                        st.markdown(f"- Deve possuir a propriedade **`{req['name']}`** dentro do Property Set **`{req['pset']}`**.")
+                    elif req.get("type") == "attribute":
+                        st.markdown(f"- Deve possuir o atributo de entidade **`{req['name']}`** preenchido.")
+                st.markdown("---")
+        else:
+            st.info("Nenhuma especificação encontrada no arquivo IDS para detalhamento.")
 
 # ----------------------------------------------------
 # TAB 5: EXPORTAR AUDITORIA
