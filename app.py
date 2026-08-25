@@ -1226,14 +1226,18 @@ with tab4:
                 
         # Download excel BEP button
         if bep_excel_path and os.path.exists(bep_excel_path):
-            with open(bep_excel_path, "rb") as f:
+            try:
+                with open(bep_excel_path, "rb") as f:
+                    bep_data = f.read()
                 st.download_button(
                     label="📥 Baixar Anexo de Requisitos do BEP (Excel)",
-                    data=f.read(),
+                    data=bep_data,
                     file_name="Anexo_BEP_Resposta_PIR.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     help="Planilha Excel estruturando a matriz de resposta técnica de conformidade openBIM"
                 )
+            except Exception as e:
+                st.error(f"Erro ao ler Anexo_BEP.xlsx local: {e}. Se estiver no OneDrive, certifique-se de baixar o arquivo localmente.")
         else:
             st.warning("O arquivo Anexo_BEP.xlsx não pôde ser gerado automaticamente. Verifique se o script `gerar_anexo_bep.py` foi enviado para o GitHub.")
     else:
@@ -1268,10 +1272,13 @@ with tab4:
     if is_default_project:
         # Embed and render PIR.md inside Streamlit
         if pir_path and os.path.exists(pir_path):
-            with open(pir_path, "r", encoding="utf-8") as f:
-                pir_markdown = f.read()
-            st.markdown("### Documento Integrado: Requisitos de Informação de Projeto (PIR)")
-            st.markdown(pir_markdown)
+            try:
+                with open(pir_path, "r", encoding="utf-8") as f:
+                    pir_markdown = f.read()
+                st.markdown("### Documento Integrado: Requisitos de Informação de Projeto (PIR)")
+                st.markdown(pir_markdown)
+            except Exception as e:
+                st.error(f"Erro ao ler PIR.md local: {e}. Se estiver no OneDrive, certifique-se de baixar o arquivo localmente.")
         else:
             st.info("O documento PIR.md não foi localizado no workspace do repositório.")
     else:
