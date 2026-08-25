@@ -128,11 +128,7 @@ def get_element_reference(element):
         return str(ref_val)
     return "Ausente"
 
-def check_property(element, pset_name, prop_name):
-    """
-    Checks if a property exists in a property set or element quantity.
-    Returns (exists, value_found)
-    """
+def _check_property_raw(element, pset_name, prop_name):
     for definition in getattr(element, 'IsDefinedBy', []):
         if definition.is_a('IfcRelDefinesByProperties'):
             prop_def = definition.RelatingPropertyDefinition
@@ -151,6 +147,50 @@ def check_property(element, pset_name, prop_name):
                                     return True, getattr(q, attr)
                             return True, None
     return False, None
+
+def check_property(element, pset_name, prop_name):
+    """
+    Checks if a property exists in a property set or element quantity.
+    Includes smart fallbacks for Revit/Archicad export non-conformities.
+    Returns (exists, value_found)
+    """
+    # 1. Try standard/raw check first
+    exists, val = _check_property_raw(element, pset_name, prop_name)
+    if exists:
+        return True, val
+        
+    # 2. Smart fallbacks for typical quantities (Revit/Archicad export issues)
+    if pset_name.startswith("Qto_") and pset_name.endswith("BaseQuantities"):
+        alt_props = [prop_name]
+        if prop_name in ["GrossArea", "NetArea", "Area"]:
+            alt_props = ["Area", "GrossArea", "NetArea"]
+        elif prop_name in ["NetVolume", "GrossVolume", "Volume"]:
+            alt_props = ["Volume", "NetVolume", "GrossVolume"]
+        elif prop_name in ["Length"]:
+            alt_props = ["Length"]
+            
+        # Try checking in official quantity set with alternative names
+        for alt_prop in alt_props:
+            if alt_prop != prop_name:
+                exists_alt, val_alt = _check_property_raw(element, pset_name, alt_prop)
+                if exists_alt:
+                    warning = f"A dimensão '{prop_name}' do elemento {element.is_a()} foi exportada com o nome não-padronizado '{alt_prop}' no conjunto oficial '{pset_name}'."
+                    if "export_warnings" in st.session_state and warning not in st.session_state.export_warnings:
+                        st.session_state.export_warnings.append(warning)
+                    return True, val_alt
+                    
+        # Try checking in Revit custom/localized sets like 'Dimensions' or 'Dimensões'
+        for alt_pset in ["Dimensions", "Dimensões"]:
+            for alt_prop in alt_props:
+                exists_fb, val_fb = _check_property_raw(element, alt_pset, alt_prop)
+                if exists_fb:
+                    warning = f"Elementos do tipo {element.is_a()} usam o conjunto de propriedades não-padrão '{alt_pset}' (parâmetro '{alt_prop}') em vez do oficial '{pset_name}.{prop_name}'."
+                    if "export_warnings" in st.session_state and warning not in st.session_state.export_warnings:
+                        st.session_state.export_warnings.append(warning)
+                    return True, val_fb
+                    
+    return False, None
+
 
 def find_file_in_repo(filename):
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -737,6 +777,7 @@ if btn_validate and selected_ifc_name in all_ifc_options and selected_ids_name i
             
     if ifc_file and specs:
         with st.spinner("Executando motor de validação IDS..."):
+            st.session_state.export_warnings = []
             metrics, detailed_results, audited_ids = run_ids_validation(ifc_file, specs)
             
             # Save results to session state
@@ -747,7 +788,8 @@ if btn_validate and selected_ifc_name in all_ifc_options and selected_ids_name i
                 "metrics": metrics,
                 "detailed_results": detailed_results,
                 "specs": specs,
-                "ifc_file": ifc_file  # Keep ref in session state
+                "ifc_file": ifc_file,  # Keep ref in session state
+                "export_warnings": st.session_state.export_warnings
             }
             st.success("Validação concluída com sucesso!")
             validation_run = True
@@ -770,6 +812,17 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 with tab1:
     if validation_data:
         st.markdown(f"### Resultados da Validação do Modelo `{validation_data['ifc_name']}` contra `{validation_data['ids_name']}`")
+        
+        # Display export warnings / non-conformities if found
+        if "export_warnings" in validation_data and validation_data["export_warnings"]:
+            with st.expander("⚠️ **Alertas de Exportação do Software de Autoria (Revit/Archicad) Detectados**", expanded=True):
+                st.markdown("""
+                Foi detectado que este modelo possui propriedades exportadas fora dos padrões oficiais da buildingSMART (openBIM). 
+                O validador aplicou correções automáticas temporárias para conseguir prosseguir com a auditoria, mas é altamente recomendável corrigir as configurações do seu software de autoria:
+                """)
+                for warning in validation_data["export_warnings"]:
+                    st.write(f"- {warning}")
+                st.info("💡 **Dica de Solução (Revit):** Ao exportar o arquivo IFC no Revit, abra as configurações detalhadas e certifique-se de marcar a opção **'Export base quantities'** (Exportar quantidades básicas) nas abas de propriedades.")
         
         metrics = validation_data["metrics"]
         
