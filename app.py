@@ -703,18 +703,38 @@ with st.sidebar:
         help="Modelos presentes na pasta 'modelos/' ou carregados manualmente."
     )
     
-    uploaded_ifc = st.file_uploader("Upload de novo IFC:", type=["ifc"])
+    uploaded_ifc = st.file_uploader("Upload de novo IFC:", type=["ifc", "zip", "ifczip"])
     if uploaded_ifc is not None:
         filename = uploaded_ifc.name
         if filename not in st.session_state.custom_ifcs:
-            # Save temporary inside workspace
             os.makedirs("modelos/temp", exist_ok=True)
             temp_path = os.path.join("modelos/temp", filename)
-            with open(temp_path, "wb") as f:
-                f.write(uploaded_ifc.getbuffer())
-            st.session_state.custom_ifcs[filename] = temp_path
-            st.success(f"IFC '{filename}' carregado com sucesso!")
-            st.rerun()
+            
+            # Check if uploaded file is zipped
+            if filename.lower().endswith(".zip") or filename.lower().endswith(".ifczip"):
+                import zipfile
+                try:
+                    with zipfile.ZipFile(uploaded_ifc, "r") as z:
+                        ifc_files_in_zip = [name for name in z.namelist() if name.lower().endswith(".ifc")]
+                        if not ifc_files_in_zip:
+                            st.error("Erro: O arquivo compactado (.zip/.ifczip) não contém nenhum arquivo .ifc em seu interior!")
+                        else:
+                            ifc_filename = os.path.basename(ifc_files_in_zip[0])
+                            extracted_path = os.path.join("modelos/temp", ifc_filename)
+                            with open(extracted_path, "wb") as out_f:
+                                out_f.write(z.read(ifc_files_in_zip[0]))
+                            st.session_state.custom_ifcs[ifc_filename] = extracted_path
+                            st.success(f"IFC '{ifc_filename}' extraído e carregado com sucesso do arquivo compactado!")
+                            st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao descompactar o arquivo: {e}")
+            else:
+                # Standard IFC file
+                with open(temp_path, "wb") as f:
+                    f.write(uploaded_ifc.getbuffer())
+                st.session_state.custom_ifcs[filename] = temp_path
+                st.success(f"IFC '{filename}' carregado com sucesso!")
+                st.rerun()
 
     st.markdown("---")
 
