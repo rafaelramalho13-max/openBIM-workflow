@@ -148,7 +148,7 @@ def _check_property_raw(element, pset_name, prop_name):
                             return True, None
     return False, None
 
-def check_property(element, pset_name, prop_name):
+def check_property(element, pset_name, prop_name, warnings_list=None):
     """
     Checks if a property exists in a property set or element quantity.
     Includes smart fallbacks for Revit/Archicad export non-conformities.
@@ -174,9 +174,10 @@ def check_property(element, pset_name, prop_name):
             if alt_prop != prop_name:
                 exists_alt, val_alt = _check_property_raw(element, pset_name, alt_prop)
                 if exists_alt:
-                    warning = f"A dimensão '{prop_name}' do elemento {element.is_a()} foi exportada com o nome não-padronizado '{alt_prop}' no conjunto oficial '{pset_name}'."
-                    if "export_warnings" in st.session_state and warning not in st.session_state.export_warnings:
-                        st.session_state.export_warnings.append(warning)
+                    if warnings_list is not None:
+                        warning = f"A dimensão '{prop_name}' do elemento {element.is_a()} foi exportada com o nome não-padronizado '{alt_prop}' no conjunto oficial '{pset_name}'."
+                        if warning not in warnings_list:
+                            warnings_list.append(warning)
                     return True, val_alt
                     
         # Try checking in Revit custom/localized sets like 'Dimensions' or 'Dimensões'
@@ -184,9 +185,10 @@ def check_property(element, pset_name, prop_name):
             for alt_prop in alt_props:
                 exists_fb, val_fb = _check_property_raw(element, alt_pset, alt_prop)
                 if exists_fb:
-                    warning = f"Elementos do tipo {element.is_a()} usam o conjunto de propriedades não-padrão '{alt_pset}' (parâmetro '{alt_prop}') em vez do oficial '{pset_name}.{prop_name}'."
-                    if "export_warnings" in st.session_state and warning not in st.session_state.export_warnings:
-                        st.session_state.export_warnings.append(warning)
+                    if warnings_list is not None:
+                        warning = f"Elementos do tipo {element.is_a()} usam o conjunto de propriedades não-padrão '{alt_pset}' (parâmetro '{alt_prop}') em vez de '{pset_name}.{prop_name}'."
+                        if warning not in warnings_list:
+                            warnings_list.append(warning)
                     return True, val_fb
                     
     return False, None
@@ -397,10 +399,11 @@ def parse_ids_xml(xml_content):
 def run_ids_validation(ifc_file, specs):
     """
     Validates an IFC file against a parsed list of IDS specifications.
-    Returns (summary_metrics, detailed_results, audited_element_ids)
+    Returns (summary_metrics, detailed_results, audited_element_ids, local_warnings)
     """
     detailed_results = []
     audited_element_ids = set()
+    local_warnings = []
     
     total_conforme = 0
     total_nao_conforme = 0
@@ -435,7 +438,7 @@ def run_ids_validation(ifc_file, specs):
                     pset = req["pset"]
                     prop_name = req["name"]
                     
-                    exists, val = check_property(el, pset, prop_name)
+                    exists, val = check_property(el, pset, prop_name, local_warnings)
                     
                     # Apply specific validation rules (PIR volume check, area check, or just presence)
                     is_valid = True
@@ -522,7 +525,7 @@ def run_ids_validation(ifc_file, specs):
         "total_auditados": len(audited_element_ids)
     }
     
-    return metrics, detailed_results, audited_element_ids
+    return metrics, detailed_results, audited_element_ids, local_warnings
 
 def generate_report_excel(detailed_results, metrics):
     output = BytesIO()
@@ -797,8 +800,7 @@ if btn_validate and selected_ifc_name in all_ifc_options and selected_ids_name i
             
     if ifc_file and specs:
         with st.spinner("Executando motor de validação IDS..."):
-            st.session_state.export_warnings = []
-            metrics, detailed_results, audited_ids = run_ids_validation(ifc_file, specs)
+            metrics, detailed_results, audited_ids, local_warnings = run_ids_validation(ifc_file, specs)
             
             # Save results to session state
             st.session_state.last_validation = {
@@ -809,7 +811,7 @@ if btn_validate and selected_ifc_name in all_ifc_options and selected_ids_name i
                 "detailed_results": detailed_results,
                 "specs": specs,
                 "ifc_file": ifc_file,  # Keep ref in session state
-                "export_warnings": st.session_state.export_warnings
+                "export_warnings": local_warnings
             }
             st.success("Validação concluída com sucesso!")
             validation_run = True
