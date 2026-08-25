@@ -1025,7 +1025,10 @@ with tab2:
                         st.write(f"- Atributo IFC: `{req['name']}`")
                 
                 # Filter results for this spec
-                df_spec_res = df_results[df_results["spec_id"] == spec_id]
+                if not df_results.empty and "spec_id" in df_results.columns:
+                    df_spec_res = df_results[df_results["spec_id"] == spec_id]
+                else:
+                    df_spec_res = pd.DataFrame()
                 
                 if not df_spec_res.empty:
                     # Flatten property details for listing
